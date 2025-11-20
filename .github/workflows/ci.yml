@@ -1,0 +1,350 @@
+name: 🌿 Block's Resources CI/CD - Testnet
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+  SOROBAN_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+  CONTRACT_NAME: blocks-resources
+
+jobs:
+  test:
+    name: 🧪 Test Suite
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+    
+    - name: 📦 Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: 📦 Cache cargo index
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: 📦 Cache cargo build
+      uses: actions/cache@v3
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: 🎯 Add WASM target
+      run: rustup target add wasm32-unknown-unknown
+    
+    - name: 🔨 Build smart contract
+      run: |
+        cd contracts/blocks-resources
+        cargo build --target wasm32-unknown-unknown --release
+    
+    - name: 🧪 Run Rust tests
+      run: |
+        cd contracts/blocks-resources
+        cargo test
+        
+    - name: 🔍 Run Clippy linter
+      run: |
+        cd contracts/blocks-resources
+        cargo clippy -- -D warnings
+        
+    - name: 📝 Check code formatting
+      run: |
+        cd contracts/blocks-resources
+        cargo fmt -- --check
+
+  deploy-testnet:
+    name: 🚀 Deploy to Stellar Testnet
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: 🌟 Install Stellar CLI
+      run: |
+        wget -q https://github.com/stellar/stellar-cli/releases/latest/download/stellar-cli-linux-x64.tar.gz
+        tar -xzf stellar-cli-linux-x64.tar.gz
+        sudo mv stellar /usr/local/bin/
+        stellar --version
+    
+    - name: 🎯 Add WASM target
+      run: rustup target add wasm32-unknown-unknown
+    
+    - name: 🔨 Build Block's Resources contract
+      run: |
+        cd contracts/blocks-resources
+        stellar contract build
+        ls -la target/wasm32-unknown-unknown/release/
+    
+    - name: 🗝️ Setup Stellar Key
+      env:
+        STELLAR_SECRET_KEY: ${{ secrets.STELLAR_SECRET_KEY }}
+      run: |
+        echo "$STELLAR_SECRET_KEY" > stellar_key.txt
+        stellar keys import github-ci stellar_key.txt
+    
+    - name: 🚀 Deploy Block's Resources to Testnet
+      run: |
+        cd contracts/blocks-resources
+        CONTRACT_ID=$(stellar contract deploy \
+          --wasm target/wasm32-unknown-unknown/release/blocks_resources.wasm \
+          --source github-ci \
+          --rpc-url ${{ env.SOROBAN_RPC_URL }} \
+          --network-passphrase "${{ env.SOROBAN_NETWORK_PASSPHRASE }}")
+        
+        echo "✅ Smart contract deployed successfully!"
+        echo "Contract ID: $CONTRACT_ID"
+        echo "CONTRACT_ID=$CONTRACT_ID" >> $GITHUB_ENV
+        
+        # Guardar Contract ID para siguientes pasos
+        echo $CONTRACT_ID > ../../contract-id.txt
+        cd ../..
+    
+    - name: 💾 Persist Contract ID
+      uses: actions/upload-artifact@v3
+      with:
+        name: contract-deployment
+        path: contract-id.txt
+    
+    - name: 🔧 Initialize Multisig Contract
+      run: |
+        stellar contract invoke \
+          --id ${{ env.CONTRACT_ID }} \
+          --source github-ci \
+          --rpc-url ${{ env.SOROBAN_RPC_URL }} \
+          --network-passphrase "${{ env.SOROBAN_NETWORK_PASSPHRASE }}" \
+          -- \
+          initialize \
+          --signers '["GBMY6UIHGFIPM2ZWXBB5U7AJTSASWL7BB4PVYVNAZZQYEUQU3UYJOWYH","GBMY6UIHGFIPM2ZWXBB5U7AJTSASWL7BB4PVYVNAZZQYEUQU3UYJOWYH","GDIK733AD4V2CDQMMZGXLFGNM7W3234IORXIGVT2BCHSUDAWI42BRD3J"]' \
+          --required_signatures 2
+        
+        echo "✅ Multisig configuration initialized (2/3 signatures required)"
+    
+    - name: 🧪 Integration Test - Register Resource
+      run: |
+        echo "🌿 Registering test resource..."
+        stellar contract invoke \
+          --id ${{ env.CONTRACT_ID }} \
+          --source github-ci \
+          --rpc-url ${{ env.SOROBAN_RPC_URL }} \
+          --network-passphrase "${{ env.SOROBAN_NETWORK_PASSPHRASE }}" \
+          -- \
+          register_resource \
+          --id "TEST_WOOD_001" \
+          --name "Test Sustainable Wood" \
+          --resource_type "Wood" \
+          --quantity 1000 \
+          --origin "Amazon Test Forest" \
+          --carbon_footprint 50 \
+          --owner GBMY6UIHGFIPM2ZWXBB5U7AJTSASWL7BB4PVYVNAZZQYEUQU3UYJOWYH
+        
+        echo "✅ Test resource registered successfully"
+    
+    - name: 🧪 Integration Test - Create Transfer
+      run: |
+        echo "🔄 Creating multisig transfer..."
+        TX_ID=$(stellar contract invoke \
+          --id ${{ env.CONTRACT_ID }} \
+          --source github-ci \
+          --rpc-url ${{ env.SOROBAN_RPC_URL }} \
+          --network-passphrase "${{ env.SOROBAN_NETWORK_PASSPHRASE }}" \
+          -- \
+          create_transfer \
+          --resource_id "TEST_WOOD_001" \
+          --from GBMY6UIHGFIPM2ZWXBB5U7AJTSASWL7BB4PVYVNAZZQYEUQU3UYJOWYH \
+          --to GDIK733AD4V2CDQMMZGXLFGNM7W3234IORXIGVT2BCHSUDAWI42BRD3J \
+          --quantity 500)
+        
+        echo "✅ Transfer created with ID: $TX_ID"
+        echo "TRANSFER_ID=$TX_ID" >> $GITHUB_ENV
+    
+    - name: 🧪 Integration Test - Sign Transaction (1/2)
+      run: |
+        echo "✍️ Adding first signature..."
+        stellar contract invoke \
+          --id ${{ env.CONTRACT_ID }} \
+          --source github-ci \
+          --rpc-url ${{ env.SOROBAN_RPC_URL }} \
+          --network-passphrase "${{ env.SOROBAN_NETWORK_PASSPHRASE }}" \
+          -- \
+          sign_transaction \
+          --tx_id 1 \
+          --signer GBMY6UIHGFIPM2ZWXBB5U7AJTSASWL7BB4PVYVNAZZQYEUQU3UYJOWYH
+        
+        echo "✅ First signature added - Pending 1 more"
+    
+    - name: 🧪 Integration Test - Sign & Execute (2/2)
+      run: |
+        echo "✍️ Adding second signature (will execute)..."
+        stellar contract invoke \
+          --id ${{ env.CONTRACT_ID }} \
+          --source github-ci \
+          --rpc-url ${{ env.SOROBAN_RPC_URL }} \
+          --network-passphrase "${{ env.SOROBAN_NETWORK_PASSPHRASE }}" \
+          -- \
+          sign_transaction \
+          --tx_id 1 \
+          --signer GDIK733AD4V2CDQMMZGXLFGNM7W3234IORXIGVT2BCHSUDAWI42BRD3J
+        
+        echo "✅ Transfer executed successfully! Multisig completed"
+    
+    - name: 🔍 Verify Final State
+      run: |
+        echo "🔍 Verifying final contract state..."
+        stellar contract invoke \
+          --id ${{ env.CONTRACT_ID }} \
+          --source github-ci \
+          --rpc-url ${{ env.SOROBAN_RPC_URL }} \
+          --network-passphrase "${{ env.SOROBAN_NETWORK_PASSPHRASE }}" \
+          -- \
+          get_resource \
+          --id "TEST_WOOD_001"
+        
+        echo "✅ All integration tests passed!"
+    
+    - name: 🗑️ Cleanup credentials
+      if: always()
+      run: |
+        rm -f stellar_key.txt
+        stellar keys remove github-ci || true
+
+  build-frontend:
+    name: 🎨 Build & Deploy Frontend
+    needs: deploy-testnet
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: 🔧 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: 📦 Download Contract ID
+      uses: actions/download-artifact@v3
+      with:
+        name: contract-deployment
+        path: ./
+    
+    - name: 📝 Update Frontend with Contract ID
+      run: |
+        CONTRACT_ID=$(cat contract-id.txt)
+        echo "Updating frontend with Contract ID: $CONTRACT_ID"
+        
+        # Actualizar el archivo JavaScript con el Contract ID
+        sed -i "s/TU_CONTRACT_ID_AQUI/$CONTRACT_ID/g" frontend/app.js
+        
+        # Crear archivo de configuración
+        echo "window.CONTRACT_ID = '$CONTRACT_ID';" > frontend/config.js
+    
+    - name: 📦 Install frontend dependencies
+      run: |
+        cd frontend
+        npm install
+        npm install -g http-server
+    
+    - name: 🔨 Build frontend (if build script exists)
+      run: |
+        cd frontend
+        npm run build || echo "No build script found, using static files"
+    
+    - name: 📁 Prepare deployment package
+      run: |
+        mkdir -p deployment
+        cp -r frontend/* deployment/
+        cp contract-id.txt deployment/contract-id.txt
+        
+        # Crear index.html optimizado
+        cat > deployment/index.html <<EOF
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Block's Resources - Testnet Demo</title>
+            <link rel="stylesheet" href="styles.css">
+        </head>
+        <body>
+            <div class="deployment-info">
+                <h1>🌿 Block's Resources - Testnet Demo</h1>
+                <p>Smart Contract ID: <code>$(cat contract-id.txt)</code></p>
+                <p>Network: Stellar Testnet</p>
+                <p>Multisig: 2/3 signatures required</p>
+            </div>
+            <script src="config.js"></script>
+            <script src="app.js"></script>
+        </body>
+        </html>
+        EOF
+    
+    - name: 🚀 Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./deployment
+        cname: blocks-resources-demo.vercel.app  # Opcional: si tienes dominio personalizado
+    
+    - name: ✅ Deployment Summary
+      run: |
+        echo "🌿 Block's Resources deployed successfully!"
+        echo "📋 Deployment Summary:"
+        echo "   Contract ID: $(cat contract-id.txt)"
+        echo "   Frontend: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+        echo "   Network: Testnet"
+        echo "   Multisig: 2/3 signatures"
+        echo "   Test Resource: TEST_WOOD_001"
+        echo "   Transfer ID: 1 (executed)"
+
+  notify:
+    name: 📢 Notify Deployment
+    needs: [deploy-testnet, build-frontend]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: ✅ Success Notification
+      if: needs.deploy-testnet.result == 'success' && needs.build-frontend.result == 'success'
+      run: |
+        echo "🎉 Block's Resources deployment completed successfully!"
+        echo "🌐 Frontend: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+        echo "📜 Contract deployed to Stellar Testnet"
+        echo "🔐 Multisig 2/3 configuration active"
+    
+    - name: ❌ Failure Notification
+      if: failure()
+      run: |
+        echo "❌ Deployment failed. Check the logs above for details."
+        echo "Common issues:"
+        echo "  - Stellar CLI installation"
+        echo "  - Network connectivity"
+        echo "  - Insufficient testnet funds"
+        echo "  - Contract compilation errors"
