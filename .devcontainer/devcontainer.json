@@ -7,20 +7,15 @@
       "version": "18"
     }
   },
-  "postCreateCommand": "bash .devcontainer/setup.sh"
-}
-  },
   "customizations": {
     "vscode": {
       "extensions": [
         "rust-lang.rust-analyzer",
         "tamasfe.even-better-toml",
-        "serayuzgur.crates",
-        "ms-vscode.vscode-json"
+        "serayuzgur.crates"
       ]
     }
   },
   "postCreateCommand": "bash .devcontainer/setup.sh",
-  "forwardPorts": [3000, 8000],
+  "forwardPorts": [8000, 3000],
   "remoteUser": "vscode"
-}
