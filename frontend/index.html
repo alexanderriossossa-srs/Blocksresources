@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block's Resources - Trazabilidad Ambiental</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/@stellar/freighter-api@1.4.0/build/index.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌿 Block's Resources</h1>
+            <p>Sistema de Trazabilidad de Recursos Ambientales en Stellar</p>
+        </header>
+
+        <div class="wallet-section">
+            <button id="connectWallet" class="btn-primary">Conectar Freighter Wallet</button>
+            <div id="walletInfo" class="hidden">
+                <p>Wallet conectada: <span id="walletAddress"></span></p>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="section">
+                <h2>Registrar Recurso</h2>
+                <form id="registerForm">
+                    <input type="text" id="resourceId" placeholder="ID del Recurso" required>
+                    <input type="text" id="resourceName" placeholder="Nombre" required>
+                    <select id="resourceType" required>
+                        <option value="">Tipo de Recurso</option>
+                        <option value="Wood">Madera</option>
+                        <option value="Water">Agua</option>
+                        <option value="Mineral">Mineral</option>
+                        <option value="Energy">Energía</option>
+                    </select>
+                    <input type="number" id="quantity" placeholder="Cantidad" required>
+                    <input type="text" id="origin" placeholder="Origen" required>
+                    <input type="number" id="carbonFootprint" placeholder="Huella de Carbono" required>
+                    <button type="submit" class="btn-success">Registrar Recurso</button>
+                </form>
+            </div>
+
+            <div class="section">
+                <h2>Crear Transferencia</h2>
+                <form id="transferForm">
+                    <input type="text" id="transferResourceId" placeholder="ID del Recurso" required>
+                    <input type="text" id="toAddress" placeholder="Dirección Destino" required>
+                    <input type="number" id="transferQuantity" placeholder="Cantidad" required>
+                    <button type="submit" class="btn-warning">Crear Transferencia</button>
+                </form>
+            </div>
+
+            <div class="section">
+                <h2>Firmar Transacción</h2>
+                <form id="signForm">
+                    <input type="number" id="txId" placeholder="ID de Transacción" required>
+                    <button type="submit" class="btn-info">Firmar Transacción</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="result" class="result hidden">
+            <h3>Resultado:</h3>
+            <pre id="resultContent"></pre>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
