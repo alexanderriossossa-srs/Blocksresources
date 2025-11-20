@@ -1,11 +1,14 @@
 {
-  "name": "Block's Resources Development",
+  "name": "Block's Resources - Stellar Dev",
   "image": "mcr.microsoft.com/devcontainers/rust:1-bullseye",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/node:1": {
       "version": "18"
     }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh"
+}
   },
   "customizations": {
     "vscode": {
