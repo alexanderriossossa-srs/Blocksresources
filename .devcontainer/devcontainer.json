@@ -1,21 +1,25 @@
 {
-  "name": "Block's Resources - Stellar Dev",
-  "image": "mcr.microsoft.com/devcontainers/rust:1-bullseye",
-  "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "18"
-    }
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "rust-lang.rust-analyzer",
-        "tamasfe.even-better-toml",
-        "serayuzgur.crates"
-      ]
-    }
-  },
-  "postCreateCommand": "bash .devcontainer/setup.sh",
-  "forwardPorts": [8000, 3000],
-  "remoteUser": "vscode"
+    "name": "Block's Resources - Stellar Dev",
+    "image": "mcr.microsoft.com/devcontainers/rust:1-bullseye",
+    "features": {
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers/features/node:1": {
+            "version": "18"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "tamasfe.even-better-toml",
+                "serayuzgur.crates"
+            ]
+        }
+    },
+    "postCreateCommand": "bash .devcontainer/setup.sh",
+    "forwardPorts": [
+        8000,
+        3000
+    ],
+    "remoteUser": "vscode"
+}
